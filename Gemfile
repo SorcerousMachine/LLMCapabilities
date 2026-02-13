@@ -9,4 +9,5 @@ group :development, :test do
   gem "standard"
   gem "sorbet"
   gem "ruby_llm"
+  gem "webmock"
 end

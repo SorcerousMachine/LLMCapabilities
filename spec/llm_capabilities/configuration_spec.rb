@@ -8,8 +8,26 @@ RSpec.describe LLMCapabilities::Configuration do
       expect(config.cache_path).to eq(".llm_capabilities_cache.json")
     end
 
-    it "has default providers" do
-      expect(config.providers).to eq(%w[openai google anthropic deepseek])
+    it "has default index_path" do
+      expect(config.index_path).to eq(".llm_capabilities_index.json")
+    end
+
+    it "has default index_ttl of 24 hours" do
+      expect(config.index_ttl).to eq(86_400)
+    end
+
+    it "has default provider_capabilities with 4 capabilities" do
+      expect(config.provider_capabilities.keys).to contain_exactly(
+        :structured_output, :function_calling, :vision, :streaming
+      )
+    end
+
+    it "has default structured_output providers" do
+      expect(config.provider_capabilities[:structured_output]).to eq(%w[openai google anthropic deepseek])
+    end
+
+    it "has default vision providers" do
+      expect(config.provider_capabilities[:vision]).to eq(%w[openai google anthropic])
     end
 
     it "has default max_age of 30 days" do
@@ -23,9 +41,19 @@ RSpec.describe LLMCapabilities::Configuration do
       expect(config.cache_path).to eq("/tmp/custom_cache.json")
     end
 
-    it "allows setting providers" do
-      config.providers = %w[openai]
-      expect(config.providers).to eq(%w[openai])
+    it "allows setting index_path" do
+      config.index_path = "/tmp/custom_index.json"
+      expect(config.index_path).to eq("/tmp/custom_index.json")
+    end
+
+    it "allows setting index_ttl" do
+      config.index_ttl = 3600
+      expect(config.index_ttl).to eq(3600)
+    end
+
+    it "allows setting provider_capabilities" do
+      config.provider_capabilities = {structured_output: %w[openai]}
+      expect(config.provider_capabilities).to eq({structured_output: %w[openai]})
     end
 
     it "allows setting max_age" do
@@ -40,13 +68,13 @@ RSpec.describe LLMCapabilities::Configuration do
   end
 
   describe "isolation" do
-    it "does not share providers array between instances" do
+    it "does not share provider_capabilities between instances" do
       config_a = described_class.new
       config_b = described_class.new
 
-      config_a.providers << "custom"
+      config_a.provider_capabilities[:structured_output] << "custom"
 
-      expect(config_b.providers).not_to include("custom")
+      expect(config_b.provider_capabilities[:structured_output]).not_to include("custom")
     end
   end
 end

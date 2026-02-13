@@ -1,69 +1,56 @@
-# typed: strict
 # frozen_string_literal: true
 
-require "sorbet-runtime"
 require_relative "llm_capabilities/version"
 require_relative "llm_capabilities/configuration"
 require_relative "llm_capabilities/cache"
+require_relative "llm_capabilities/model_index"
 require_relative "llm_capabilities/detector"
 
 module LLMCapabilities
-  extend T::Sig
-
-  @configuration = T.let(nil, T.nilable(Configuration))
-  @cache = T.let(nil, T.nilable(Cache))
-  @detector = T.let(nil, T.nilable(Detector))
+  class Error < StandardError; end
+  class UnknownCapabilityError < Error; end
 
   class << self
-    extend T::Sig
-
-    sig { returns(Configuration) }
     def configuration
       @configuration ||= Configuration.new
     end
 
-    sig { params(block: T.proc.params(config: Configuration).void).void }
     def configure(&block)
       block.call(configuration)
       @cache = nil
+      @model_index = nil
       @detector = nil
     end
 
-    sig { params(model: String, thinking: T::Boolean).returns(T::Boolean) }
-    def supports_schema?(model, thinking: false)
-      detector.supports_schema?(model, thinking: thinking)
+    def supports?(model, capability, context: {})
+      detector.supports?(model, capability, context: context)
     end
 
-    sig { params(model: String, thinking: T::Boolean, supported: T::Boolean).void }
-    def record(model, thinking:, supported:)
-      cache.record(model, thinking: thinking, supported: supported)
+    def record(model, capability, supported:, context: {})
+      cache.record(model, capability, supported: supported, context: context)
     end
 
-    sig { params(model: String, thinking: T::Boolean).returns(T.nilable(T::Boolean)) }
-    def lookup(model, thinking: false)
-      cache.lookup(model, thinking: thinking)
+    def lookup(model, capability, context: {})
+      cache.lookup(model, capability, context: context)
     end
 
-    sig { void }
     def clear!
       cache.clear!
     end
 
-    sig { returns(Integer) }
     def size
       cache.size
     end
 
-    sig { void }
     def reset!
       @configuration = nil
       @cache = nil
+      @model_index = nil
       @detector = nil
     end
 
     private
 
-    sig { returns(Cache) }
     def cache
       @cache ||= Cache.new(
         path: configuration.cache_path,
@@ -71,11 +58,18 @@ module LLMCapabilities
       )
     end
 
-    sig { returns(Detector) }
+    def model_index
+      @model_index ||= ModelIndex.new(
+        path: configuration.index_path,
+        ttl: configuration.index_ttl
+      )
+    end
+
     def detector
       @detector ||= Detector.new(
         cache: cache,
-        providers: configuration.providers
+        provider_capabilities: configuration.provider_capabilities,
+        model_index: model_index
       )
     end
   end

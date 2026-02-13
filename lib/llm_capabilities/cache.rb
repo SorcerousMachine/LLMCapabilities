@@ -1,4 +1,3 @@
-# typed: strict
 # frozen_string_literal: true
 
 require "json"
@@ -6,66 +5,61 @@ require "fileutils"
 
 module LLMCapabilities
   class Cache
-    extend T::Sig
-
-    sig { params(path: String, max_age: T.nilable(Integer)).void }
     def initialize(path: Configuration::DEFAULT_CACHE_PATH, max_age: Configuration::DEFAULT_MAX_AGE)
-      @path = T.let(path, String)
-      @max_age = T.let(max_age, T.nilable(Integer))
-      @entries = T.let(nil, T.nilable(T::Hash[String, T::Hash[String, T.untyped]]))
+      @path = path
+      @max_age = max_age
+      @entries = nil
     end
 
-    sig { params(model: String, thinking: T::Boolean).returns(T.nilable(T::Boolean)) }
-    def lookup(model, thinking: false)
+    def lookup(model, capability, context: {})
       load_cache!
-      entry = T.must(@entries)[cache_key(model, thinking)]
+      entry = @entries[cache_key(model, capability, context)]
       return nil unless entry.is_a?(Hash)
 
       if @max_age && entry["recorded_at"]
-        elapsed = Time.now.to_i - T.cast(entry["recorded_at"], Integer)
+        elapsed = Time.now.to_i - entry["recorded_at"]
         return nil if elapsed > @max_age
       end
 
-      T.cast(entry["supported"], T::Boolean)
+      entry["supported"]
     end
 
-    sig { params(model: String, thinking: T::Boolean, supported: T::Boolean).void }
-    def record(model, thinking: false, supported: false)
+    def record(model, capability, supported:, context: {})
       load_cache!
-      T.must(@entries)[cache_key(model, thinking)] = {
+      @entries[cache_key(model, capability, context)] = {
         "supported" => supported,
         "recorded_at" => Time.now.to_i
       }
       persist!
     end
 
-    sig { void }
     def clear!
       @entries = {}
       persist!
     end
 
-    sig { returns(Integer) }
     def size
       load_cache!
-      T.must(@entries).length
+      @entries.length
     end
 
     private
 
-    sig { params(model: String, thinking: T::Boolean).returns(String) }
-    def cache_key(model, thinking)
-      "#{model}:thinking=#{thinking}"
+    def cache_key(model, capability, context)
+      base = "#{model}:#{capability}"
+      return base if context.empty?
+
+      pairs = context.sort_by { |k, _| k.to_s }.map { |k, v| "#{k}=#{v}" }.join(",")
+      "#{base}:#{pairs}"
     end
 
-    sig { void }
     def load_cache!
       return unless @entries.nil?
 
       @entries = if File.exist?(@path)
         File.open(@path, File::RDONLY) do |f|
           f.flock(File::LOCK_SH)
-          T.cast(JSON.parse(f.read), T::Hash[String, T::Hash[String, T.untyped]])
+          JSON.parse(f.read)
         end
       else
         {}
@@ -74,7 +68,6 @@ module LLMCapabilities
       @entries = {}
     end
 
-    sig { void }
     def persist!
       dir = File.dirname(@path)
       FileUtils.mkdir_p(dir) unless Dir.exist?(dir)

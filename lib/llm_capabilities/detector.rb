@@ -1,48 +1,63 @@
-# typed: strict
 # frozen_string_literal: true
 
 module LLMCapabilities
   class Detector
-    extend T::Sig
+    # Capability vocabulary derived from RubyLLM's model capability strings.
+    # See: https://github.com/crmne/ruby_llm
+    KNOWN_CAPABILITIES = %i[
+      streaming function_calling structured_output predicted_outputs
+      distillation fine_tuning batch realtime image_generation
+      speech_generation transcription translation citations
+      reasoning caching moderation json_mode vision
+    ].freeze
 
-    sig do
-      params(
-        cache: Cache,
-        providers: T::Array[String],
-        ruby_llm_enabled: T.nilable(T::Boolean)
-      ).void
-    end
-    def initialize(cache:, providers: Configuration::DEFAULT_PROVIDERS.dup, ruby_llm_enabled: nil)
-      @cache = T.let(cache, Cache)
-      @providers = T.let(providers, T::Array[String])
-      @ruby_llm_enabled = T.let(ruby_llm_enabled, T.nilable(T::Boolean))
+    def initialize(cache:, provider_capabilities: Configuration::DEFAULT_PROVIDER_CAPABILITIES, model_index: nil, ruby_llm_enabled: nil)
+      @cache = cache
+      @provider_capabilities = provider_capabilities
+      @model_index = model_index
+      @ruby_llm_enabled = ruby_llm_enabled
     end
 
-    sig { params(model: String, thinking: T::Boolean).returns(T::Boolean) }
-    def supports_schema?(model, thinking: false)
-      # Tier 1: Empirical cache (most authoritative)
-      cached = @cache.lookup(model, thinking: thinking)
+    def supports?(model, capability, context: {})
+      validate_capability!(capability)
+
+      # Tier 1: Empirical cache (most authoritative, with full context)
+      cached = @cache.lookup(model, capability, context: context)
       return cached unless cached.nil?
 
-      # Tier 2: RubyLLM model registry
-      ruby_llm_result = query_ruby_llm(model)
+      # Tier 2: OpenRouter model index (base capability only)
+      if @model_index
+        index_result = @model_index.lookup(model, capability)
+        return index_result unless index_result.nil?
+      end
+
+      # Tier 3: RubyLLM model registry (base capability only)
+      ruby_llm_result = query_ruby_llm(model, capability)
       return ruby_llm_result unless ruby_llm_result.nil?
 
-      # Tier 3: Provider-level heuristic
-      provider_supports_schema?(model)
+      # Tier 4: Provider-level heuristic (base capability only)
+      provider_supports?(model, capability)
     end
 
-    sig { params(model: String).returns(T::Boolean) }
-    def provider_supports_schema?(model)
-      provider = model.include?("/") ? T.must(model.split("/", 2).first) : nil
+    def provider_supports?(model, capability)
+      provider = model.include?("/") ? model.split("/", 2).first : nil
       return false unless provider
 
-      @providers.include?(provider)
+      providers = @provider_capabilities[capability]
+      return false unless providers
+
+      providers.include?(provider)
     end
 
     private
 
-    sig { returns(T::Boolean) }
+    def validate_capability!(capability)
+      return if KNOWN_CAPABILITIES.include?(capability)
+
+      raise UnknownCapabilityError,
+        "Unknown capability: #{capability.inspect}. Known capabilities: #{KNOWN_CAPABILITIES.join(", ")}"
+    end
+
     def ruby_llm_available?
       if @ruby_llm_enabled.nil?
         @ruby_llm_enabled = defined?(RubyLLM) ? true : false
@@ -50,15 +65,15 @@ module LLMCapabilities
       @ruby_llm_enabled
     end
 
-    sig { params(model: String).returns(T.nilable(T::Boolean)) }
-    def query_ruby_llm(model)
+    def query_ruby_llm(model, capability)
       return nil unless ruby_llm_available?
 
-      model_info = T.unsafe(RubyLLM).models.find(model)
+      model_info = RubyLLM.models.find(model)
       return nil unless model_info
 
-      if model_info.respond_to?(:structured_output?)
-        model_info.structured_output?
+      method_name = :"#{capability}?"
+      if model_info.respond_to?(method_name)
+        model_info.public_send(method_name)
       end
     rescue
       nil

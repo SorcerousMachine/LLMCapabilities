@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "llm_capabilities"
+require "webmock/rspec"
 
 RSpec.configure do |config|
   config.expect_with :rspec do |expectations|

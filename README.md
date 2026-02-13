@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/SorcerousMachine/LLMCapabilities/actions/workflows/ci.yml/badge.svg)](https://github.com/SorcerousMachine/LLMCapabilities/actions/workflows/ci.yml)
 [![Gem Version](https://img.shields.io/gem/v/llm_capabilities)](https://rubygems.org/gems/llm_capabilities)
+[![Sorbet](https://img.shields.io/badge/sorbet-typed-blue.svg)](https://sorbet.org)
+[![Coverage](https://codecov.io/gh/SorcerousMachine/LLMCapabilities/branch/main/graph/badge.svg)](https://codecov.io/gh/SorcerousMachine/LLMCapabilities)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.txt)
 
 4-tier capability detection for LLM models. Zero runtime dependencies.

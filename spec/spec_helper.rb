@@ -1,10 +1,17 @@
 # frozen_string_literal: true
 
 require "simplecov"
+require "simplecov-cobertura"
 SimpleCov.start do
   minimum_coverage 95
   enable_coverage :branch
   add_filter "/spec/"
+  if ENV["CI"]
+    formatter SimpleCov::Formatter::MultiFormatter.new([
+      SimpleCov::Formatter::HTMLFormatter,
+      SimpleCov::Formatter::CoberturaFormatter
+    ])
+  end
 end
 
 require "llm_capabilities"

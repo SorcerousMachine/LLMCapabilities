@@ -21,6 +21,12 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - run: bundle exec rspec
+      - name: Upload coverage to Codecov
+        if: matrix.ruby == '3.4'
+        uses: codecov/codecov-action@v5
+        with:
+          files: coverage/coverage.xml
+          fail_ci_if_error: false
 
   lint:
     runs-on: ubuntu-latest

@@ -246,5 +246,101 @@ RSpec.describe LLMCapabilities::Detector do
       # Should fall through to tier 4 without calling RubyLLM
       expect(disabled_detector.supports?("openai/o4-mini", :structured_output)).to be true
     end
+
+    it "auto-detects RubyLLM availability when ruby_llm_enabled is nil" do
+      auto_detector = described_class.new(cache: cache, ruby_llm_enabled: nil)
+
+      # RubyLLM is not defined in test env, so auto-detection sets @ruby_llm_enabled = false
+      # Falls through to tier 4
+      expect(auto_detector.supports?("openai/o4-mini", :structured_output)).to be true
+    end
+  end
+
+  describe "model string parsing edge cases" do
+    it "extracts provider from model with multiple slashes" do
+      expect(detector.provider_supports?("company/division/model", :structured_output)).to be false
+    end
+
+    it "extracts provider from model with trailing slash" do
+      expect(detector.provider_supports?("openai/", :structured_output)).to be true
+    end
+
+    it "returns false for model with leading slash (empty provider)" do
+      expect(detector.provider_supports?("/model", :structured_output)).to be false
+    end
+  end
+
+  describe "validate_capability! edge cases" do
+    it "accepts every KNOWN_CAPABILITY without raising" do
+      LLMCapabilities::Detector::KNOWN_CAPABILITIES.each do |cap|
+        expect { detector.supports?("openai/o4-mini", cap) }.not_to raise_error
+      end
+    end
+
+    it "raises for string capability instead of symbol" do
+      expect { detector.supports?("openai/o4-mini", "structured_output") }
+        .to raise_error(LLMCapabilities::UnknownCapabilityError)
+    end
+  end
+
+  describe "query_ruby_llm edge cases" do
+    let(:detector_with_ruby_llm) do
+      described_class.new(cache: cache, ruby_llm_enabled: true)
+    end
+
+    before do
+      stub_const("RubyLLM", Module.new {
+        def self.models
+        end
+      })
+    end
+
+    it "returns nil when model_info does not respond_to capability method" do
+      model_info = double("ModelInfo")
+      models = double("Models")
+      allow(models).to receive(:find).with("openai/o4-mini").and_return(model_info)
+      allow(RubyLLM).to receive(:models).and_return(models)
+
+      # model_info doesn't have structured_output? — falls through to tier 4
+      expect(detector_with_ruby_llm.supports?("openai/o4-mini", :structured_output)).to be true
+    end
+
+    it "catches TypeError from capability method and returns nil" do
+      model_info = double("ModelInfo")
+      allow(model_info).to receive(:respond_to?).with(:structured_output?).and_return(true)
+      allow(model_info).to receive(:structured_output?).and_raise(TypeError, "something went wrong")
+      models = double("Models")
+      allow(models).to receive(:find).with("openai/o4-mini").and_return(model_info)
+      allow(RubyLLM).to receive(:models).and_return(models)
+
+      # Falls through to tier 4 due to rescue
+      expect(detector_with_ruby_llm.supports?("openai/o4-mini", :structured_output)).to be true
+    end
+
+    it "catches error when RubyLLM.models returns nil" do
+      allow(RubyLLM).to receive(:models).and_return(nil)
+
+      # nil.find raises NoMethodError, rescued, falls through to tier 4
+      expect(detector_with_ruby_llm.supports?("openai/o4-mini", :structured_output)).to be true
+    end
+  end
+
+  describe "provider_supports? with empty provider_capabilities" do
+    let(:empty_detector) do
+      described_class.new(cache: cache, provider_capabilities: {}, ruby_llm_enabled: false)
+    end
+
+    it "returns false for all capabilities" do
+      expect(empty_detector.provider_supports?("openai/o4-mini", :structured_output)).to be false
+      expect(empty_detector.provider_supports?("openai/o4-mini", :vision)).to be false
+      expect(empty_detector.provider_supports?("openai/o4-mini", :streaming)).to be false
+    end
+  end
+
+  describe "all 4 configured default capabilities" do
+    it "includes structured_output, function_calling, vision, and streaming" do
+      defaults = LLMCapabilities::Configuration::DEFAULT_PROVIDER_CAPABILITIES
+      expect(defaults.keys).to contain_exactly(:structured_output, :function_calling, :vision, :streaming)
+    end
   end
 end

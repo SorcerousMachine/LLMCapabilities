@@ -1,5 +1,12 @@
 # frozen_string_literal: true
 
+require "simplecov"
+SimpleCov.start do
+  minimum_coverage 95
+  enable_coverage :branch
+  add_filter "/spec/"
+end
+
 require "llm_capabilities"
 require "webmock/rspec"
 

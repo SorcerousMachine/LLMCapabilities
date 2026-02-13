@@ -6,6 +6,7 @@ gemspec
 
 group :development, :test do
   gem "rspec"
+  gem "simplecov"
   gem "standard"
   gem "sorbet"
   gem "ruby_llm"

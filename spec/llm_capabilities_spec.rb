@@ -104,4 +104,73 @@ RSpec.describe LLMCapabilities do
       expect(described_class.size).to eq(2)
     end
   end
+
+  describe "reconfiguration" do
+    it "uses new cache_path after reconfigure" do
+      described_class.record("openai/o4-mini", :structured_output, supported: true)
+      expect(described_class.lookup("openai/o4-mini", :structured_output)).to be true
+
+      new_cache_path = File.join(cache_dir, "new_cache.json")
+      described_class.configure do |config|
+        config.cache_path = new_cache_path
+        config.index_path = index_path
+      end
+
+      expect(described_class.lookup("openai/o4-mini", :structured_output)).to be_nil
+    end
+  end
+
+  describe "multiple configure calls" do
+    it "properly reinitializes internals on each call" do
+      described_class.configure do |config|
+        config.cache_path = cache_path
+        config.index_path = index_path
+        config.provider_capabilities = {structured_output: %w[openai]}
+      end
+
+      expect(described_class.supports?("openai/o4-mini", :structured_output)).to be true
+      expect(described_class.supports?("anthropic/claude-sonnet-4.5", :structured_output)).to be false
+
+      described_class.configure do |config|
+        config.cache_path = cache_path
+        config.index_path = index_path
+        config.provider_capabilities = {structured_output: %w[anthropic]}
+      end
+
+      expect(described_class.supports?("openai/o4-mini", :structured_output)).to be false
+      expect(described_class.supports?("anthropic/claude-sonnet-4.5", :structured_output)).to be true
+    end
+  end
+
+  describe "configure after record" do
+    it "loses recorded data when cache_path changes" do
+      described_class.record("openai/o4-mini", :structured_output, supported: false)
+      expect(described_class.lookup("openai/o4-mini", :structured_output)).to be false
+
+      new_cache_path = File.join(cache_dir, "fresh_cache.json")
+      described_class.configure do |config|
+        config.cache_path = new_cache_path
+        config.index_path = index_path
+      end
+
+      expect(described_class.lookup("openai/o4-mini", :structured_output)).to be_nil
+    end
+  end
+
+  describe "reset! clears singletons" do
+    it "creates fresh objects after reset" do
+      described_class.configure do |config|
+        config.cache_path = cache_path
+        config.index_path = index_path
+        config.provider_capabilities = {structured_output: %w[openai]}
+      end
+
+      expect(described_class.supports?("anthropic/claude-sonnet-4.5", :structured_output)).to be false
+
+      described_class.reset!
+
+      # After reset, defaults restored — anthropic is in default provider_capabilities
+      expect(described_class.supports?("anthropic/claude-sonnet-4.5", :structured_output)).to be true
+    end
+  end
 end

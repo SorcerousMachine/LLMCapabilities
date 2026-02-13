@@ -213,4 +213,111 @@ RSpec.describe LLMCapabilities::Cache do
       expect(fresh_cache.lookup("openai/o4-mini", :structured_output)).to be true
     end
   end
+
+  describe "max_age = 0 edge case" do
+    it "expires entries immediately when backdated by 1 second" do
+      zero_cache = described_class.new(path: cache_path, max_age: 0)
+      zero_cache.record("openai/o4-mini", :structured_output, supported: true)
+
+      # Backdate by 1 second so elapsed (1) > max_age (0)
+      data = JSON.parse(File.read(cache_path))
+      key = "openai/o4-mini:structured_output"
+      data[key]["recorded_at"] = Time.now.to_i - 1
+      File.write(cache_path, JSON.pretty_generate(data))
+
+      fresh_cache = described_class.new(path: cache_path, max_age: 0)
+      expect(fresh_cache.lookup("openai/o4-mini", :structured_output)).to be_nil
+    end
+  end
+
+  describe "missing recorded_at field" do
+    it "returns supported value when entry has no timestamp" do
+      data = {"openai/o4-mini:structured_output" => {"supported" => true}}
+      File.write(cache_path, JSON.pretty_generate(data))
+
+      fresh_cache = described_class.new(path: cache_path)
+      expect(fresh_cache.lookup("openai/o4-mini", :structured_output)).to be true
+    end
+  end
+
+  describe "context with special values" do
+    it "handles nil values in context" do
+      cache.record("openai/o4-mini", :structured_output, context: {key: nil}, supported: true)
+
+      expect(cache.lookup("openai/o4-mini", :structured_output, context: {key: nil})).to be true
+    end
+
+    it "handles integer values in context" do
+      cache.record("openai/o4-mini", :structured_output, context: {count: 42}, supported: true)
+
+      expect(cache.lookup("openai/o4-mini", :structured_output, context: {count: 42})).to be true
+    end
+  end
+
+  describe "record-clear-re-record cycle" do
+    it "transitions size correctly through 1 -> 0 -> 1" do
+      cache.record("openai/o4-mini", :structured_output, supported: true)
+      expect(cache.size).to eq(1)
+
+      cache.clear!
+      expect(cache.size).to eq(0)
+
+      cache.record("google/gemini-2.5-flash", :vision, supported: false)
+      expect(cache.size).to eq(1)
+    end
+  end
+
+  describe "empty file on disk" do
+    it "starts fresh when file exists but is empty" do
+      File.write(cache_path, "")
+
+      fresh_cache = described_class.new(path: cache_path)
+      expect(fresh_cache.lookup("openai/o4-mini", :structured_output)).to be_nil
+      expect(fresh_cache.size).to eq(0)
+    end
+  end
+
+  describe "truncated JSON file" do
+    it "starts fresh on partial write" do
+      File.write(cache_path, '{"key":')
+
+      fresh_cache = described_class.new(path: cache_path)
+      expect(fresh_cache.lookup("openai/o4-mini", :structured_output)).to be_nil
+      expect(fresh_cache.size).to eq(0)
+    end
+  end
+
+  describe "file permission error on persist" do
+    it "raises Errno::EACCES when file cannot be written" do
+      allow(File).to receive(:open).and_call_original
+      allow(File).to receive(:open).with(cache_path, File::CREAT | File::WRONLY | File::TRUNC).and_raise(Errno::EACCES)
+
+      expect {
+        cache.record("openai/o4-mini", :structured_output, supported: true)
+      }.to raise_error(Errno::EACCES)
+    end
+  end
+
+  describe "file becomes unreadable between operations" do
+    it "raises when file cannot be read" do
+      cache.record("openai/o4-mini", :structured_output, supported: true)
+
+      fresh_cache = described_class.new(path: cache_path)
+      allow(File).to receive(:open).with(cache_path, File::RDONLY).and_raise(Errno::EACCES)
+
+      expect {
+        fresh_cache.lookup("openai/o4-mini", :structured_output)
+      }.to raise_error(Errno::EACCES)
+    end
+  end
+
+  describe "multiple entries with same model" do
+    it "counts entries with different capabilities and contexts correctly" do
+      cache.record("openai/o4-mini", :structured_output, supported: true)
+      cache.record("openai/o4-mini", :vision, supported: true)
+      cache.record("openai/o4-mini", :structured_output, context: {thinking: true}, supported: false)
+
+      expect(cache.size).to eq(3)
+    end
+  end
 end

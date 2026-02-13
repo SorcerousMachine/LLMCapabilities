@@ -1,3 +1,6 @@
 --dir=lib
 --dir=sorbet/rbi
+# Prism 1.9.0 ships a broken RBI referencing removed Prism::LexCompat (error 5002).
+# Pulled in transitively via standard → rubocop → parser → prism.
+# Safe to remove once prism ships a fixed RBI. Check with: bundle exec srb tc 2>&1 | grep LexCompat
 --suppress-error-code=5002

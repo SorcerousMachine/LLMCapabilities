@@ -19,7 +19,7 @@ module LLMCapabilities
     def lookup(model, thinking: false)
       load_cache!
       entry = T.must(@entries)[cache_key(model, thinking)]
-      return nil unless entry
+      return nil unless entry.is_a?(Hash)
 
       if @max_age && entry["recorded_at"]
         elapsed = Time.now.to_i - T.cast(entry["recorded_at"], Integer)
@@ -65,8 +65,7 @@ module LLMCapabilities
       @entries = if File.exist?(@path)
         File.open(@path, File::RDONLY) do |f|
           f.flock(File::LOCK_SH)
-          data = JSON.parse(f.read)
-          migrate(data)
+          T.cast(JSON.parse(f.read), T::Hash[String, T::Hash[String, T.untyped]])
         end
       else
         {}
@@ -84,21 +83,6 @@ module LLMCapabilities
         f.flock(File::LOCK_EX)
         f.write(JSON.pretty_generate(@entries))
       end
-    end
-
-    sig { params(data: T.untyped).returns(T::Hash[String, T::Hash[String, T.untyped]]) }
-    def migrate(data)
-      result = T.let({}, T::Hash[String, T::Hash[String, T.untyped]])
-      T.cast(data, T::Hash[String, T.untyped]).each do |key, value|
-        result[key] = case value
-        when Hash
-          value
-        else
-          # Legacy format: bare boolean → wrap with current timestamp
-          {"supported" => value, "recorded_at" => Time.now.to_i}
-        end
-      end
-      result
     end
   end
 end

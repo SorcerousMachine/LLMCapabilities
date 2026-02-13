@@ -152,14 +152,14 @@ RSpec.describe LLMCapabilities::Cache do
     end
   end
 
-  describe "legacy format migration" do
-    it "migrates bare boolean values to timestamped format" do
-      # Write legacy format (bare booleans without timestamps)
+  describe "incompatible cache format" do
+    it "treats non-hash entry values as unreadable and returns nil" do
+      # A cache file with bare booleans (wrong format) will raise on T.cast
       legacy_data = {"openai/o4-mini:thinking=false" => true}
       File.write(cache_path, JSON.pretty_generate(legacy_data))
 
       fresh_cache = described_class.new(path: cache_path)
-      expect(fresh_cache.lookup("openai/o4-mini")).to be true
+      expect(fresh_cache.lookup("openai/o4-mini")).to be_nil
     end
   end
 

@@ -4,3 +4,6 @@
 # Pulled in transitively via standard → rubocop → parser → prism.
 # Safe to remove once prism ships a fixed RBI. Check with: bundle exec srb tc 2>&1 | grep LexCompat
 --suppress-error-code=5002
+# Sorbet cannot track instance variable mutations through block-based method calls
+# (e.g., File.open { @index = ... }), producing false-positive unreachable code warnings.
+--suppress-error-code=7006

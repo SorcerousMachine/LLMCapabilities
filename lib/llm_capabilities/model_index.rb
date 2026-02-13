@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# typed: true
 
 require "json"
 require "fileutils"
@@ -75,7 +76,13 @@ module LLMCapabilities
         return
       end
 
-      raw_data = JSON.parse(response.body)
+      body = response.body
+      unless body
+        @index ||= {}
+        return
+      end
+
+      raw_data = JSON.parse(body)
       @index = normalize(raw_data)
       persist!
     rescue => _e

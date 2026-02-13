@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+# typed: true
 
 require_relative "llm_capabilities/version"
 require_relative "llm_capabilities/configuration"

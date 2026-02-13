@@ -9,11 +9,16 @@ Gem::Specification.new do |spec|
   spec.summary = "4-tier capability detection for LLM models"
   spec.description = "Detects whether LLM models support specific capabilities via empirical cache, " \
     "OpenRouter model index, RubyLLM model registry, and provider-level heuristics. Zero runtime dependencies."
-  spec.homepage = "https://github.com/alexfarrill/llm_capabilities"
+  spec.homepage = "https://github.com/SorcerousMachine/LLMCapabilities"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2"
 
-  spec.files = Dir["lib/**/*.rb", "LICENSE.txt"]
+  spec.metadata = {
+    "source_code_uri" => "https://github.com/SorcerousMachine/LLMCapabilities",
+    "changelog_uri" => "https://github.com/SorcerousMachine/LLMCapabilities/blob/main/CHANGELOG.md"
+  }
+
+  spec.files = Dir["lib/**/*.rb", "LICENSE.txt", "README.md", "CHANGELOG.md"]
   spec.require_paths = ["lib"]
 
   # Zero runtime dependencies — stdlib only (json, net/http, fileutils)

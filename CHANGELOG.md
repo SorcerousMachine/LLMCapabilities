@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1
+
+- Add CI workflow, Codecov coverage reporting, and GitHub Actions gem release
+- Add comprehensive README with badges, API reference, and capability tables
+- Add SimpleCov with 95% minimum coverage enforcement (141 tests, 99.56% line coverage)
+- Add Rakefile for gem release task
+
 ## 0.2.0
 
 - Generalize API from `supports_schema?(model, thinking:)` to `supports?(model, capability, context: {})`
